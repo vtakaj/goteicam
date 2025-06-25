@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>4S5定チェック撮影</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .camera-container {
+            flex: 1;
+            position: relative;
+            background: #000;
+            overflow: hidden;
+        }
+        
+        #video, #canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            display: none;
+        }
+        
+        .preview-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: none;
+            z-index: 10;
+        }
+        
+        .preview-image {
+            width: 100%;
+            height: 80%;
+            object-fit: contain;
+        }
+        
+        .controls {
+            background: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2980b9;
+            transform: scale(1.05);
+        }
+        
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #229954;
+        }
+        
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+        
+        .btn-capture {
+            width: 70px;
+            height: 70px;
+            background: #e74c3c;
+            border-radius: 50%;
+            border: 5px solid white;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            cursor: pointer;
+            transition: all 0.1s ease;
+        }
+        
+        .btn-capture:active {
+            transform: scale(0.95);
+        }
+        
+        .camera-switch {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.3);
+            border: 2px solid white;
+            color: white;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        
+        .info-panel {
+            position: absolute;
+            bottom: 100px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
+        }
+        
+        .location-input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+            display: none;
+        }
+        
+        .result-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            z-index: 1000;
+        }
+        
+        .result-content {
+            background: white;
+            margin: 50px auto;
+            padding: 20px;
+            width: 90%;
+            max-width: 500px;
+            border-radius: 10px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .result-item {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #e74c3c;
+        }
+        
+        @media (max-width: 768px) {
+            .btn {
+                padding: 10px 20px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>4S5定チェック撮影</h1>
+        </div>
+        
+        <div class="camera-container">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas"></canvas>
+            
+            <button class="camera-switch" id="switchCamera" style="display:none;">
+                🔄
+            </button>
+            
+            <div class="loading" id="loading">
+                処理中...
+            </div>
+            
+            <div class="preview-container" id="previewContainer">
+                <img class="preview-image" id="previewImage" alt="Preview">
+                <div class="info-panel">
+                    <input type="text" class="location-input" id="locationInput" placeholder="撮影場所を入力（例：工場A 第2ライン）">
+                </div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button class="btn btn-secondary" id="retakeBtn" style="display:none;">撮り直し</button>
+            <button class="btn-capture" id="captureBtn"></button>
+            <input type="file" id="fileInput" accept="image/*" capture="environment" style="display: none;">
+            <button class="btn btn-primary" id="fileUploadBtn" style="display: none;">写真を選択</button>
+            <button class="btn btn-success" id="uploadBtn" style="display:none;">送信</button>
+        </div>
+    </div>
+    
+    <div class="result-modal" id="resultModal">
+        <div class="result-content">
+            <h2>分析結果</h2>
+            <div id="resultDetails"></div>
+            <button class="btn btn-primary" onclick="closeResult()">閉じる</button>
+        </div>
+    </div>
+
+    <script>
+        let video = document.getElementById('video');
+        let canvas = document.getElementById('canvas');
+        let ctx = canvas.getContext('2d');
+        let currentStream = null;
+        let facingMode = 'environment'; // 後ろカメラをデフォルト
+        
+        // カメラの初期化
+        async function initCamera() {
+            try {
+                // カメラへのアクセス権限を確認
+                const permissionStatus = await navigator.permissions.query({ name: 'camera' }).catch(() => null);
+                
+                if (permissionStatus && permissionStatus.state === 'denied') {
+                    showPermissionGuide();
+                    return;
+                }
+                
+                // 既存のストリームを停止
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.stop());
+                }
+                
+                const constraints = {
+                    video: {
+                        facingMode: facingMode,
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    }
+                };
+                
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = currentStream;
+                
+                // 複数カメラがある場合のみ切り替えボタンを表示
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                if (videoDevices.length > 1) {
+                    document.getElementById('switchCamera').style.display = 'flex';
+                }
+                
+            } catch (err) {
+                console.error('カメラへのアクセスエラー:', err);
+                
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    showPermissionGuide();
+                } else if (err.name === 'NotFoundError') {
+                    showError('カメラが見つかりません。デバイスにカメラが接続されているか確認してください。');
+                } else if (err.name === 'NotReadableError') {
+                    showError('カメラは他のアプリで使用中です。他のアプリを終了してから再度お試しください。');
+                } else if (err.name === 'OverconstrainedError') {
+                    // 制約を緩めて再試行
+                    try {
+                        currentStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                        video.srcObject = currentStream;
+                    } catch (retryErr) {
+                        showError('カメラの起動に失敗しました。');
+                    }
+                } else {
+                    showError('カメラへのアクセスに失敗しました: ' + err.message);
+                }
+            }
+        }
+        
+        // 権限ガイドを表示
+        function showPermissionGuide() {
+            const guideHTML = `
+                <div style="background: white; padding: 20px; margin: 20px; border-radius: 10px; text-align: center;">
+                    <h2 style="color: #e74c3c;">📷 カメラへのアクセスが必要です</h2>
+                    <p style="margin: 20px 0;">このアプリを使用するにはカメラへのアクセス許可が必要です。</p>
+                    
+                    <div style="text-align: left; background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                        <h3>設定方法:</h3>
+                        <h4>Safari (iPad/iPhone)の場合:</h4>
+                        <ol>
+                            <li>設定アプリを開く</li>
+                            <li>「Safari」を選択</li>
+                            <li>「カメラ」を「許可」に変更</li>
+                            <li>このページを再読み込み</li>
+                        </ol>
+                        
+                        <h4>Chrome/Edgeの場合:</h4>
+                        <ol>
+                            <li>アドレスバーの鍵アイコンをクリック</li>
+                            <li>「カメラ」を「許可」に変更</li>
+                            <li>ページを再読み込み</li>
+                        </ol>
+                    </div>
+                    
+                    <button class="btn btn-primary" onclick="location.reload()">再読み込み</button>
+                </div>
+            `;
+            document.querySelector('.camera-container').innerHTML = guideHTML;
+        }
+        
+        // エラー表示
+        function showError(message) {
+            const errorHTML = `
+                <div style="background: white; padding: 20px; margin: 20px; border-radius: 10px; text-align: center;">
+                    <h2 style="color: #e74c3c;">⚠️ エラー</h2>
+                    <p style="margin: 20px 0;">${message}</p>
+                    <button class="btn btn-primary" onclick="location.reload()">再試行</button>
+                </div>
+            `;
+            document.querySelector('.camera-container').innerHTML = errorHTML;
+        }
+        
+        // カメラの切り替え
+        document.getElementById('switchCamera').addEventListener('click', () => {
+            facingMode = facingMode === 'environment' ? 'user' : 'environment';
+            initCamera();
+        });
+        
+        // 写真撮影
+        document.getElementById('captureBtn').addEventListener('click', () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
+            
+            const imageData = canvas.toDataURL('image/jpeg', 0.8);
+            document.getElementById('previewImage').src = imageData;
+            document.getElementById('previewContainer').style.display = 'block';
+            document.getElementById('retakeBtn').style.display = 'block';
+            document.getElementById('uploadBtn').style.display = 'block';
+            document.getElementById('captureBtn').style.display = 'none';
+        });
+        
+        // 撮り直し
+        document.getElementById('retakeBtn').addEventListener('click', () => {
+            document.getElementById('previewContainer').style.display = 'none';
+            document.getElementById('retakeBtn').style.display = 'none';
+            document.getElementById('uploadBtn').style.display = 'none';
+            document.getElementById('captureBtn').style.display = 'block';
+        });
+        
+        // アップロード
+        document.getElementById('uploadBtn').addEventListener('click', async () => {
+            const location = document.getElementById('locationInput').value || '未入力';
+            const imageData = canvas.toDataURL('image/jpeg', 0.8);
+            
+            document.getElementById('loading').style.display = 'block';
+            
+            try {
+                // ここで実際のサーバーにPOST
+                const response = await fetch('https://your-server.com/upload', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        image: imageData,
+                        location: location,
+                        timestamp: new Date().toISOString()
+                    })
+                });
+                
+                // デモ用のダミーレスポンス
+                setTimeout(() => {
+                    document.getElementById('loading').style.display = 'none';
+                    showResult({
+                        score: 65,
+                        improvements: [
+                            { category: '整理', issue: '不要な工具が作業台に放置されています' },
+                            { category: '整頓', issue: '工具の定位置表示がありません' },
+                            { category: '清掃', issue: '床面に切削屑が散乱しています' }
+                        ]
+                    });
+                }, 2000);
+                
+            } catch (err) {
+                document.getElementById('loading').style.display = 'none';
+                alert('アップロードエラー: ' + err.message);
+            }
+        });
+        
+        // 結果表示
+        function showResult(data) {
+            const resultDetails = document.getElementById('resultDetails');
+            resultDetails.innerHTML = `
+                <p><strong>スコア:</strong> ${data.score}/100点</p>
+                <h3>改善が必要な項目:</h3>
+                ${data.improvements.map(item => `
+                    <div class="result-item">
+                        <strong>${item.category}</strong><br>
+                        ${item.issue}
+                    </div>
+                `).join('')}
+                <p style="margin-top: 20px;">
+                    詳細な分析結果はSlackに送信されました。
+                </p>
+            `;
+            document.getElementById('resultModal').style.display = 'block';
+            
+            // 初期状態に戻す
+            document.getElementById('previewContainer').style.display = 'none';
+            document.getElementById('retakeBtn').style.display = 'none';
+            document.getElementById('uploadBtn').style.display = 'none';
+            document.getElementById('captureBtn').style.display = 'block';
+            document.getElementById('locationInput').value = '';
+        }
+        
+        // 結果を閉じる
+        function closeResult() {
+            document.getElementById('resultModal').style.display = 'none';
+        }
+        
+        // 初期化
+        initCamera().catch(() => {
+            // カメラが使えない場合はファイルアップロードモードに切り替え
+            document.getElementById('captureBtn').style.display = 'none';
+            document.getElementById('fileUploadBtn').style.display = 'block';
+        });
+        
+        // ファイルアップロードの処理
+        document.getElementById('fileUploadBtn').addEventListener('click', () => {
+            document.getElementById('fileInput').click();
+        });
+        
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    document.getElementById('previewImage').src = event.target.result;
+                    document.getElementById('previewContainer').style.display = 'block';
+                    document.getElementById('retakeBtn').style.display = 'block';
+                    document.getElementById('uploadBtn').style.display = 'block';
+                    document.getElementById('fileUploadBtn').style.display = 'none';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        // PWAとして動作させる場合のService Worker登録
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js');
+        }
+    </script>
+</body>
+</html>
